@@ -74,39 +74,6 @@ __global__ void sad_color(float *x0, float *x1, float *output, int size, int siz
 	}
 }
 
-__global__ void sad_color_correct(float *x0, float *x1, float *output, int size, int size2, int size3, int wnd_half, float bnd_const)
-{
-    int blockId = blockIdx.y * gridDim.x + blockIdx.x;
-    int id = blockId * blockDim.x + threadIdx.x;
-    
-    int num_channels = 3;
-    
-	if (id < size) {
-		int x = blockIdx.x;
-		int y = blockIdx.y;
-		int d = -threadIdx.x;
-
-		float dist;
-		if (0 <= x + d && x + d < size3) {
-			dist = 0;
-			for (int i = 0; i < num_channels; i++) {
-				int ind_p = (i * size2 + y) * size3 + x;
-				for (int yy = y - wnd_half; yy <= y + wnd_half; yy++) {
-					for (int xx = x - wnd_half; xx <= x + wnd_half; xx++) {
-	         			if (0 <= xx && xx < size3 && 0 <= xx + d && xx + d < size3 && 0 <= yy && yy < size2) {
-			    				int ind_q = (i * size2 + yy) * size3 + xx;
-    			    		    dist += abs(x0[ind_p] - x1[ind_q + d]);
-    			    	}
-					}
-				}
-			}
-		} else {
-			dist = bnd_const;
-		}
-		output[id] = dist / 3.0f;
-	}
-}
-
 __global__ void linear_comb(float *inp0, float *inp1, float *output, int size, float alpha, float beta)
 {
     int blockId = blockIdx.y * gridDim.x + blockIdx.x;
@@ -141,37 +108,6 @@ __global__ void outlier_detection(float *d0, float *d1, float *outlier, int size
 		}
 	}
 }
-
-__global__ void outlier_detection_exact(float *d0, float *d1, float *outlier, int size, int dim3, int disp_max)
-{
-	int id = blockIdx.y * gridDim.x + blockIdx.x;
-	if (id < size) {
-		int x = id % dim3;
-		int d0i = d0[id];
-		if (x - d0i < 0) {
-			//assert(0);
-			outlier[id] = 0;
-		} else if (abs(d0[id] - d1[id - d0i]) < 0.1) {
-			outlier[id] = 1; /* match */
-		} else {
-		
-		}
-	}
-}
-
-__global__ void disp_r2l(float *d0, float *d1, float *output, int size, int dim3, int disp_max)
-{
-	int id = blockIdx.y * gridDim.x + blockIdx.x;
-	if (id < size) {
-		int x = id % dim3;
-		int d0i = d0[id];
-		if (x - d0i < 0) {
-		} else {
-		    output[id] = d1[id - d0i];
-		}
-	}
-}
-
 
 __device__ void sort(float *x, int n)
 {
@@ -297,7 +233,6 @@ __global__ void dtransform_lr(
       
       output[ind] = (1.0 - omega) * output[ind] + omega * output[ind_prev];
       
-      //output[ind] = weight[blockIdx.x * width + i_w];
   }
   
   for (i_w = width-2; i_w >= 0; i_w--)
@@ -308,8 +243,6 @@ __global__ void dtransform_lr(
       omega = weight[blockIdx.x * width + i_w];
       
       output[ind] = (1.0 - omega) * output[ind] + omega * output[ind_prev];
-      
-      //output[ind] = weight[blockIdx.x * width + i_w];
   }
 }
 
@@ -349,61 +282,6 @@ __global__ void dtransform_ud(
 }
 
 
-__global__ void spatial_argmin(float *input, float *output, const int height, const int width, const int channels)
-{
-	int id_out = blockIdx.y * gridDim.x + blockIdx.x;
-	
-	int argmin = 0;
-	float min = CUDART_INF;
-	for (int i_d = 0; i_d < channels; i_d++) {
-	    int id_e = (id_out) * channels + i_d;
-		float val = input[id_e];
-		if (val < min) {
-			min = val;
-			argmin = i_d;
-		}
-	}
-	output[id_out] = argmin;
-}
 
 
-__global__ void spatial_argmin_block(float *input, float *output, const int height, const int width, const int channels)
-{
-	//int id_out = blockIdx.y * gridDim.x + blockIdx.x;
-	
-	int id_out = threadIdx.y * blockDim.x + threadIdx.x;
-	
-	
-	int argmin = 0;
-	float min = CUDART_INF;
-	for (int i_d = 0; i_d < channels; i_d++) {
-	    int id_e = (id_out) * channels + i_d;
-		float val = input[id_e];
-		if (val < min) {
-			min = val;
-			argmin = i_d;
-		}
-	}
-	output[id_out] = argmin;
-}
 
-
-/*__global__ void spatial_argmin(float *input, float *output, int size, int size1, int size23)
-{
-	int id = blockIdx.x * blockDim.x + threadIdx.x;
-	if (id < size) {
-		int dim23 = id % size23;
-		int dim0 = id / size23;
-
-		int argmin = 0;
-		float min = CUDART_INF;
-		for (int i = 0; i < size1; i++) {
-			float val = input[(dim0 * size1 + i) * size23 + dim23];
-			if (val < min) {
-				min = val;
-				argmin = i;
-			}
-		}
-		output[id] = argmin + 1;
-	}
-}*/
